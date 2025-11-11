@@ -12,6 +12,10 @@
 .text
 .global _start
 _start:
+      ///////////////////////////////////////////////////////////////////////////////////////////
+     //**************************************INITIALISATIONS**********************************//
+    ///////////////////////////////////////////////////////////////////////////////////////////
+ 
   // Read command line arguments and exit unless there are at least two, excluding the name of the
   // executable. The first argument will be read as the command and the remainder will be parsed
   // as input numbers.
@@ -38,9 +42,9 @@ _start:
 _l0:
   cbz   x23, _l1
   sub   x23, x23, #1
-  ldr   x0, [x21], #8
-  bl    _atoi
-  str   x0, [x22], #8
+  ldr   x0, [x21], #8              // An offset of 8bytes is done when storing the input ints since one is 8bytes.
+  bl    _atoi                     // This method takes the input and converts the string into a valid integer.
+  str   x0, [x22], #8            // Stores it.
   b     _l0
 _l1:
 
@@ -74,6 +78,9 @@ _l4:
   cmp  x5, #1001
   beq   _sort
 
+
+
+   // This is where the foldright function is called.. only for when foldright is used.
   // _foldright(0, (a, b) => *a += *b)
   adrp	x5, _add
 	add	  x4, x5, :lo12:_add
@@ -83,6 +90,8 @@ _l4:
   ldr   x0, [x0]
   bl    _printn
   b     _success
+
+
 
 _sort:
   // _foldright(0, (a, b) => *a.insert(*b))
@@ -95,12 +104,14 @@ _sort:
   bl    _printt
   b     _success
 
+
+
+
 // Exit with a status 0.
 _success:
   mov   w0, #0
   mov   w8, #93
   svc   #0
-
 // Show the executable's usage and exit with a status 1.
 _usage:
   ldr   x0, =usage
@@ -110,48 +121,126 @@ _usage:
   mov   x0, #1
   mov   w8, #64
   svc   #0
-
 // Exit with a failure status 1.
 _failure:
   mov   w0, #1
   mov   w8, #93
   svc   #0
 
-/// Combines the the elements a buffer into an accumulator by applying the given function on the
-/// accumulator and each element, from right to left.
-///
-/// This function "folds" a sequence of elements from right to left into an accumulator using an
-/// updating function provided by its caller. The updating function accepts the address of the
-/// accumulator in `x0` and the address of an element in `x1`, combines the value at `x1` with the
-/// value at `x0`, and writes the result in `x0`. The addresses of the `n`-th (with `n` less than
-/// the number of elements in the buffer) is computed by offsetting the buffer's base address by
-/// `n * s`, where `s` is the size of an element.
-///
-/// When the function returns, `x0` contains the address of the accumulator that was initially
-/// passed in `x3`. The result of other argument registers is unspecified.
-///
-/// The following is a possible recursive implementation of `_foldright` in C:
-///
-///     void* foldright(void* xs, int s, int n, void* a, void(*f)(void*, void*)) {
-///       if (n != 0) {
-///         char* p = (char*)xs + s * --n;
-///         f(a, p);
-///         foldright(xs, s, n, a, f);
-///       }
-///       return a;
-///     }
-///
-/// - Parameters:
-///   - x0 The address of a buffer.
-///   - x1 The size of each element in the buffer pointed to by `x0`, , which is less than 2^16
-///   - x2 The number of elements in the buffer pointed to by `x0`, which is less than 2^48.
-///   - x3 The address of the initial accumulator value.
-///   - x4 The address of a function that combines an element with the accumulator.
-///
-/// - Complexity: O(n) where n is the number of elements in the buffer.
+  ///////////////////////////////////////////////////////////////////////////////////////////
+ //********************************************END****************************************//
+///////////////////////////////////////////////////////////////////////////////////////////
+
+
+/*
+  /// Combines the the elements a buffer into an accumulator by applying the given function on the
+  /// accumulator and each element, from right to left.
+  ///
+  /// This function "folds" a sequence of elements from right to left into an accumulator using an
+  /// updating function provided by its caller. The updating function accepts the address of the
+  /// accumulator in `x0` and the address of an element in `x1`, combines the value at `x1` with the
+  /// value at `x0`, and writes the result in `x0`. The addresses of the `n`-th (with `n` less than
+  /// the number of elements in the buffer) is computed by offsetting the buffer's base address by
+  /// `n * s`, where `s` is the size of an element.
+  ///
+  /// When the function returns, `x0` contains the address of the accumulator that was initially
+  /// passed in `x3`. The result of other argument registers is unspecified.
+  ///
+  /// The following is a possible recursive implementation of `_foldright` in C:
+  ///
+  ///     void* foldright(void* xs, int s, int n, void* a, void(*f)(void*, void*)) {
+  ///       if (n != 0) {
+  ///         char* p = (char*)xs + s * --n;
+  ///         f(a, p);
+  ///         foldright(xs, s, n, a, f);
+  ///       }
+  ///       return a;
+  ///     }
+  ///
+  /// - Parameters:
+  ///   - x0 The address of a buffer.
+  ///   - x1 The size of each element in the buffer pointed to by `x0`, , which is less than 2^16
+  ///   - x2 The number of elements in the buffer pointed to by `x0`, which is less than 2^48.
+  ///   - x3 The address of the initial accumulator value.
+  ///   - x4 The address of a function that combines an element with the accumulator.
+  ///
+  /// - Fo me:
+  ///   - xs  Is the register that contains all the input values that became integer after passing through _l0 and therefor _atoi.
+  ///   - p   Is the new value fetched from the storage with the correct offset (set by s and n).
+  ///   - f(..., ...) Is the function sum
+  ///   - s   Is the size of the values that we are fetching in the stack. Or register x21 I'm not sure (actually is there a distinction
+  ///         between the stack and the registers ? I don't know if they are seperate ?)
+  ///   - n   Is the counter of the remaining values stored.
+  ///   - a   Is the accumulator or result as I normally use
+  ///
+  /// - So finally:
+  ///   - xs = x0
+  ///   - f = address at x4 (is it not just _add ??)
+  ///   - s = x1
+  ///   - n = x2
+  ///   - oh shoot just read that it's written Parameters and everything is in order of apparation => whhooopss.
+  ///   - Anyways..
+  ///   - a = address at x3
+  ///
+  /// - Complexity: O(n) where n is the number of elements in the buffer.
+*/
+
+
+
+// At first, I was storing values in the registers.. but I forgot that they can be modifed whenever we go outside of our
+// function. AKA a branch. This means that ANY register can be modified whithout us knowing.
+// This is why we have to store the values of the registers that are important to us.
+// There are quite a few old comments that explain my wrong process so don't worry about them, I know what it's supposed to be now.
 _foldright:
   // TODO
-  ret
+
+     // Notes:
+    // The size of a regiseter is 8bytes.
+   // This means that the stack has to be 8*n, where n is the amount of registers we want to store.
+  // The stack pointer must always be a "multiple"
+  stp x29, x30, [sp, #-64]!   // Makes place on the stack and stores the frame pointer and the link register.
+
+  _proceed:
+    cbz x2, _done          // n = 0 ? => I loop back till it finishes => recursive. YUP
+
+    sub x2, x2, #1       // n -= 1
+    mul x5, x1, x2      // s * n which is the offset
+    //ldr x6, [x0, x5] // p = x6
+    add x5, x0, x5    // the true p
+
+    // I am pretty sure that the function f(a, p); that appears in the C code and is at the address in the x4 register, is the _add.
+    // So here are all the precautions to keep the values of x0 and x1, since they are the ones being used for the _add function.
+    // This is wrong only in the sense that I was using registers to store the data which isn't the right thing to do. I have to use the stack.
+    //mov x8, x1           // Stores s=x1, because when we do br x4, I believe it branches to _add and in doing so, modifies the value of x1.
+    //mov x9, x0          // Stores xs=x0 since it will be modified in the add function
+    //mov x0, x3           // x1 = a for the add
+    //mov x1, x5          // x1 = p for the add
+
+    stp x0, x1, [sp, #16]          // Stores
+    stp x2, x3, [sp, #32]         // Stores
+    str x4, [sp, #48]            // Stores
+    mov x0, x3                  // Gives the accumulator to x0 since the function at x4 takes a and p at x0 and x1, respectivly.
+    mov x1, x5                 // x1 = x5
+
+    blr x4                   // Adds a with p and stores it in a which is x0
+
+    mov x3, x0             // Gives the a back to the right register x3
+    ldp x0, x1, [sp, #16] // Restores
+    ldr x2, [sp, #32]    // Restores
+    ldr x4, [sp, #48]   // Restores
+    b _proceed         // Loops back.
+
+  _done:
+    mov x0, x3               // Gives the values of the accumulator to the register x0 which is what is demanded and expected from our function.
+    ldp x29, x30, [sp], #64 // Restores. DAAAAAAAMMMMNNNN writing the #64 removes the stack => just avoid writing another line of code.
+
+  ret lr                  // return a. Don't know what this loops back to yet. 
+                         // Hopefully back to the original bl. Otherwise just branch to link register.
+                        // After looking.. if you write lr and don't specify a register afterward, then 
+                       // it will default to x30, which is the register of lr.
+                      // So when we restore the lr at line 230, well we have the correct lr which is
+                     // where we initally called the foldright function since we stored it at the very start of _foldright.
+
 
 /// Inserts the value of `x1` in the binary search tree rooted at `x0`.
 ///
@@ -164,8 +253,92 @@ _foldright:
 ///
 /// - Complexity: O(log n) where n is the number of elements in the tree.
 _tree_insert:
-  // TODO
-  ret
+  // TODO 
+
+               // Notes:
+              // We are now in the function f(a, p); this means that we only receive a and p which are x0 and x1 respectively.
+             // The accumulator originally found at x3, is the pointer to the binary search tree instead of the total sum in _foldright.
+            // In this case a = x0 "= x3". hunnnnhhh ???? `__´
+           // Does the register x4 in this case contain the address of the _insert function then ? NOPE.
+
+         // When you _init_heap, the size of the heap is 2048 bytes
+        // The size of a tree node is 24 bytes     (this gives us 85 total tree nodes possible)
+       // (lhs, rhs, value) are each equal to 8 bytes. When making a new node, I have to assign a value to it aswell as
+      // make their lhs and rhs equal to zero in case that isn't done by default.
+ 
+    // REGISTERS
+   // - x0 contains the address of the the b.s.treee's root
+  // - x1 contains the new value to insert into the BST
+
+  stp x29, x30, [sp, #-48]!   // Creates stack and stores.
+  stp x0, x1, [sp, #16]      // Stores the address of the binary search tree aswell as the new value to insert in the tree I believe.
+
+  cbnz x0, _proceed_new    // jumps if the BST already possesses a root. Otherwise creates a node with the value given in x1 (with empty lhs, rhs)
+                          // And exits.
+  mov x0, 24
+  mov x1, 4
+  bl _aalloc           // _aalloc will create a new node. x0 now contains the address of the allocation of the root
+  ldr x1, [sp, #24]
+  str x1, [x0, #16]  // Assignes the value of x1 to the new node.
+  str #0, [x0]      // LHS = 0
+  str #0, [x0, #8] // RHS = 0
+                  // x0 is now the root of the BSTree and is ready to be returned. Exits.
+  b _done_new
+
+
+  _proceed_new:
+    ldr x3, [x0, #16]          // Accesses the value of the root and stores in x3
+                              // x1 already contains the value of the new node we want to insert.
+    blt x1, x3, _insert_left
+    b _insert_right
+
+
+  _insert_left:
+    ldr x4, [x0]
+    cbz x4, _do_it_left // If the LHS of the current node is null (=0), then we insert the value into it at _do_it_left and it exits.
+                       // Otherwise we update the new current node and we loop back to _proceed_new:
+    // I don't know how to access the child node of the root node if it exists. This would be the final thing I needed in order
+    // For my program to work.
+
+    //******FINAL COMMENT******//
+    // Here the LHS (and RHS for the _insert_right method) isn't null.. 
+    // this means that I would have to find the value of the child in the heap I think.
+    //******END******//
+    
+    _do_it_left:
+      mov x0, 24              // Creation prep.
+      mov x1, 4              // Creation prep.
+      b _aalloc             // Create a new node with the address in x0
+                           // Now we have to give this node the value of x1 and child it to ldr x0
+      str x1, [x0, #16]   // The new node now has it's value set to x1
+                         // Now have to parent it to ldr x0
+      ldr x0, [sp, #16]
+      str x1, [x0]     // Assignes the LHS of x0 to the value of x2 (which is contained in x1)
+      b _done_new
+
+  _insert_right:
+    ldr x4, [x0, #8]
+    cbz x4, _do_it_right // If the LHS of the current node is null (=0), then we insert the value into it at _do_it_left and it exits.
+                        // Otherwise we update the new current node and we loop back to _proceed_new:
+    // I don't know how to access the child node of the root node if it exists. This would be the final thing I needed in order
+    // For my program to work.
+    
+    _do_it_right:
+      mov x0, 24              // Creation prep.
+      mov x1, 4              // Creation prep.
+      b _aalloc             // Create a new node with the address in x0
+                           // Now we have to give this node the value of x1 and child it to ldr x0
+      str x1, [x0, #16]   // The new node now has it's value set to x1
+                         // Now have to parent it to ldr x0
+      ldr x0, [sp, #16]
+      str x1, [x0, #8] // Assignes the RHS of x0 to the value of x2 (which is contained in x1)
+      b _done_new
+
+
+  _done_new:
+    ldp x29, x30, [sp], #48
+
+  ret lr
 
 /// Computes the sum of the integers stored at the addresses contained in `x0` and `x1` and writes
 /// the result at the address contained in `x0`.

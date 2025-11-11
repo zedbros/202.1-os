@@ -9,6 +9,19 @@
             // So have to use .quad 0
 .text
 
+//**************************************************************************
+//**************************NOTE TO PROFFESOR(S)****************************
+//**************************************************************************
+// I unfortunatly took too much time with the str_to_nat.s section and did
+// not manage to finish in time.
+// I however, dug as deep as possible in it and am providing you the annotated
+// file as proof of my research in hops that this will prove some level of
+// dedication despite the not completing the inital given task.
+// Sorry in advance James Zeiger.
+//**************************************************************************
+//**************************NOTE TO PROFFESOR(S)****************************
+//**************************************************************************
+
 .global _start
 _start:
   // Prints 42.

@@ -19,7 +19,7 @@ namespace mmu {
 ///     std::uint32_t n = *rebind<std::uint32_t>(p);
 ///
 /// The address referred to by `p` must satisfy the alignment requirements of `T`. Otherwise, the
-/// result is unspecified and dereferencing the returned pointer has undefiend behavior.
+/// result is unspecified and dereferencing the returned pointer has undefined behavior.
 template<typename T>
 inline constexpr T* rebind(void* p) { return static_cast<T*>(p); }
 
@@ -29,6 +29,10 @@ inline constexpr T* rebind(void* p) { return static_cast<T*>(p); }
 template<typename T>
 inline constexpr T const* rebind(void const* p) { return static_cast<T const*>(p); }
 
+
+
+
+//////////////////////////////////////////// ADDRESSES ////////////////////////////////////////////
 /// Writes a textual representation of `a`, which is an address, to `o`.
 std::ostream& write_address(std::ostream& o, std::uint16_t a) {
   std::ios cout_state(nullptr);
@@ -38,7 +42,7 @@ std::ostream& write_address(std::ostream& o, std::uint16_t a) {
   std::cout.copyfmt(cout_state);
   return o;
 }
-
+//////////////////////////////////////////// VIRTUAL ADDRESS ////////////////////////////////////////////
 /// An index in a page translation table together with an offset in a physical frame.
 ///
 /// A virtual address is represented as a 16-bit unsigned integer that encodes an index in page
@@ -64,8 +68,8 @@ struct VirtualAddress {
 
   /// Returns the address of the page containing this address.
   inline constexpr VirtualAddress page() const {
-    return VirtualAddress{static_cast<std::uint16_t>(raw & ~0xff)};
-  }
+    return VirtualAddress{static_cast<std::uint16_t>(raw & ~0xff)};             // le tild veut dire non. ici, le ~0xff fait une masque sur raw. 
+  }                                                                            // Donc le not0xff fait une masque de 1111111100000000 (ou l'inverse ?)
 
   /// Returns this address advanced by the given offset.
   inline constexpr VirtualAddress advanced(std::uint16_t offset) const {
@@ -75,10 +79,11 @@ struct VirtualAddress {
 };
 
 /// Writes a textual representation of `va` to `o`.
-inline std::ostream& operator<<(std::ostream& o, VirtualAddress va) {
+inline std::ostream& operator<<(std::ostream& o, VirtualAddress va) {   // pretty print of virtual address.
   return write_address(o, va.raw);
 }
 
+//////////////////////////////////////////// PHYSICAL ADDRESS ////////////////////////////////////////////
 /// An offset in the physical address space.
 struct PhysicalAddress {
 
@@ -88,10 +93,16 @@ struct PhysicalAddress {
 };
 
 /// Writes a textual representation of `pa` to `o`.
-inline std::ostream& operator<<(std::ostream& o, PhysicalAddress pa) {
+inline std::ostream& operator<<(std::ostream& o, PhysicalAddress pa) {   // pretty print of physical address.
   return write_address(o, pa.raw);
 }
+//////////////////////////////////////////// ADDRESSES END ////////////////////////////////////////////
 
+
+
+
+
+//////////////////////////////////////////// ERROR HANDLING ////////////////////////////////////////////
 /// The reason that caused a page lookup error.
 enum PageLookupErrorCause : std::uint8_t {
 
@@ -121,7 +132,7 @@ struct PageLookupError final : public std::exception {
   ) : target(target), cause(cause) {}
 
   /// Returns a textual description of this error as a null-terminated string.
-  constexpr const char* what() const noexcept override {
+  constexpr const char* what() const noexcept override {                        // pretty print text of the exception
     switch (cause) {
       case PageFault:
         return "page fault";
@@ -133,7 +144,11 @@ struct PageLookupError final : public std::exception {
   }
 
 };
+//////////////////////////////////////////// END ERROR HANDLING ////////////////////////////////////////////
 
+
+
+//////////////////////////////////////////// FRAME ////////////////////////////////////////////
 /// Information about a frame, i.e., the storage of a page in physical memory.
 ///
 /// A frame descriptor is a record describing a region of physical memory that forms a frame (i.e.,
@@ -170,7 +185,7 @@ struct PageLookupError final : public std::exception {
 /// and `raw[3]` as an array of offsets in physical memory. Otherwise, `brcnt` is equal to 3 and
 /// the contents of `raw[2]` and `raw[3]` is unspecified.
 ///
-/// When a page not currently in main memory is accessed (or allocated), the system must first map
+/// When a page not currently in *main memory* is accessed (or allocated), the system must first map
 /// that page to some frame. If all frames are occupied, the system will try to "steal" the frame
 /// from one of the current pages. The victim is selected by looking at the `r` flag of each frame.
 /// If it is unset (and the frame is not pinned), then the corresponding page will be evicted.
@@ -209,8 +224,8 @@ struct FrameDescriptor {
 
   /// Returns `true` iff the frame is not pinned and has not been referenced.
   ///
-  /// The result of this method is equivalent to `!is_referenced() && !is_pinned()`.
-  inline constexpr bool is_ready_for_eviction() const {
+  /// The result of this method is equivalent to `!is_referenced() && !is_pinned()`.      // SO if a frame was recently accessed, then it's 'r' flag is at 1.
+  inline constexpr bool is_ready_for_eviction() const {                                  // Basically works as a cache.
     return ((raw[0] & 3) ^ 1) == 1;
   }
 
@@ -219,8 +234,8 @@ struct FrameDescriptor {
     return raw[0] >> 2;
   }
 
-  // A list of length greater than 2 is considered to have an arbitrary length.
-  // We store the offset of the page entry.
+  /// A list of length greater than 2 is considered to have an arbitrary length.
+  /// We store the offset of the page entry.
   void add_back_reference(std::uint8_t entry) {
     auto c = back_reference_count();
     if (c < 2) {
@@ -246,17 +261,20 @@ struct FrameDescriptor {
     return static_cast<std::uint16_t>(raw[1]) | (static_cast<std::uint16_t>(raw[0] & 0xc0) << 8);
   }
 
-  /// Returns the position of the frame in secondary memory if it is permanent or 0 otherwise.
+  /// Returns the position of the frame in secondary memory if it is permanent or 0 otherwise.     // I presume this is a setter and the one above is a getter.
   inline void set_permanent_position(std::uint16_t p) {
     raw[1] = static_cast<std::uint8_t>(p & 0xff);
     raw[0] = (raw[0] & 0x3f) | static_cast<std::uint8_t>(p >> 8);
   }
 
 };
+//////////////////////////////////////////// END FRAME ////////////////////////////////////////////
 
+
+//////////////////////////////////////////// PAGE ////////////////////////////////////////////
 /// Information about a page.
 ///
-/// A page table entry (PTE) is a record describing how a page in the virtual memory space is
+/// A page table entry (PTE) is a record describing how a page in the virtual memory space is     // Just as a reminder, pages go inside a frame.
 /// mapped to a frame in physical memory space.
 ///
 /// A PTE is represented as a 16-bit integer, using the layout below:
@@ -269,9 +287,9 @@ struct FrameDescriptor {
 ///
 /// The meaning of the flags stored in the least significant bits is as follows:
 ///
-/// - `a` is set iff the page entry is defined.
-/// - `p` is set iff the corresponding frame is present in main memory.
-/// - `r` is set iff the page can be read.
+/// - `a` is set iff the page entry is defined.                                 // Does the frame already exist ?
+/// - `p` is set iff the corresponding frame is present in main memory.        // present in main memory ? if not must be swapped into main memory b4 accessing it. 
+/// - `r` is set iff the page can be read.                                    // Perms...
 /// - `w` is set iff the page can be written to.
 /// - `x` is set iff the page can be executed.
 ///
@@ -351,7 +369,12 @@ struct PageEntry {
   }
 
 };
+//////////////////////////////////////////// END FRAME ////////////////////////////////////////////
 
+
+
+
+//////////////////////////////////////////// TLB ////////////////////////////////////////////
 /// A translation lookaside buffer (TLB).
 ///
 /// This data structure implements a cache backed by a simple ring buffer. Each entry in the cache
@@ -391,7 +414,7 @@ struct TLB {
   ///
   /// The method returns an empty PTE (i.e., a PTE whose raw value is zero) iff the cache contains
   /// no entry mapping `va`. Otherwise, the looked-up entry is moved closer to the start.
-  PageEntry lookup(VirtualAddress va) {
+  PageEntry lookup(VirtualAddress va) {                                                           // This is the circular array thingy. Called a ring array.
     for (std::size_t i = 0; i < size; ++i) {
       auto const p = (*this)[i];
       auto const k = p & 0xffff;
@@ -432,12 +455,25 @@ struct TLB {
 
 };
 
+            // Above is a pretty important algorithm (swap) because it has a linear complexity of O(n).
+
+//////////////////////////////////////////// END TLB ////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
+
 /// A virtual machine and its operating system.
 ///
 /// Instances of this type model a virtual machine equipped with a single-core CPU, 4KB of main
 /// memory, and 256KB of secondary memory.
 ///
-/// The system implements demand paging. The virtual address space is represented using the full
+/// The system implements demand *paging*. The virtual address space is represented using the full
 /// range of a 16-bit unsigned integer, mapping onto 12-bit physical address space, segmenting
 /// memory into 256 bytes pages. Address mappings are encoded by a multi-level page translation
 /// table indexed by the 8 most significant bits of a virtual address.
@@ -519,7 +555,7 @@ struct Machine {
   /// which is pinned and therefore never evicted. Hence, offsets from 0 in the physical address
   /// space can be used as stable addresses to these data structures and their contents.
   ///
-  /// The translation table is initialized so that addresses in the range from `0xf800` to `0xf8ff`
+  /// The translation table is initialized so that addresses in the range from `0xf800` to `0xf8ff`             // Prolly important addresses
   /// map to the first frame of the main memory, which is pinned.
   Machine() {
     // Allocate the secondary memory on the heap.
@@ -650,7 +686,7 @@ struct Machine {
   /// If a TLB miss occurs, the system decodes the 8 most significant bits of `va` to index the
   /// page translation table (see `VirtualAddress`). This process is referred to as a page walk.
   ///
-  /// The page translation table has three levels, denoted by *L0*, *L1*, and *L3*, respectively.
+  /// The page translation table has three levels, denoted by *L0*, *L1*, and *L3*, respectively.   // I presume that *L3* is L2 instead
   /// Each level is composed of a number of directories that represent nodes or leaves in a tree.
   /// Specifically, *L0* encodes the root node and consists of only one directory with 4 entries,
   /// *L1* can contain up to 4 directories (one per child of the root) of 8 entries, and *L2* can
@@ -727,6 +763,14 @@ struct Machine {
     return translate_with_entry(va, permissions, *rebind<PageEntry>(pda), true);
   }
 
+
+
+
+
+
+
+
+
   /// Returns the physical address corresponding to `va` accessed with `permissions`, throwing
   /// if `va` is not mapped or if the protection of the page are incompatible with `permissions`.
   PhysicalAddress translate(VirtualAddress va, PageEntry::Protection permissions) {
@@ -742,14 +786,121 @@ struct Machine {
   /// `protection`.
   ///
   /// If `hint` is null, then the kernel chooses the (page-aligned) address at which to create the
-  /// mapping. If `hint` is not null, then the kernel picks a nearby page boundary ans attempts to
+  /// mapping. If `hint` is not null, then the kernel picks a nearby page boundary and attempts to
   /// create the mapping there. If another mapping already exists there, the kernel picks a new
   /// address that may or may not depend on the hint.
   ///
   /// The address of the new mapping is returned as the result of the call.
   VirtualAddress simple_mmap(
-    VirtualAddress hint, std::size_t length, PageEntry::Protection protection
-  );
+    VirtualAddress hint, std::size_t length, PageEntry::Protection protection) {
+         // So I presume I'm supposed to find a new location to fit data of size size_t with specific perms.
+        // When using this function, we are given this:
+       //            m.simple_mmap(0, 128, PageEntry::read | PageEntrey::Write)
+      // This is found inside of the test-all.cc file. (I was confused what we were given when this function
+     // is called). I think you can access the bit values by using x.raw ?
+    // Pretty sure the length is bytes.. I'm assuming, so if something's wrong.. then it's probably this.
+
+     // This is the final result, which is a 16bit int as described at line 48 and is the value we return.
+    VirtualAddress resultVirtualAddress = 0;
+
+     // The 8LSB together are the frame offset.
+    // The 2MSB is L0, next 3 L1 and final 3 L3.
+
+
+    //***********OVERVIEW *************//
+       // - We are given a wanted size with perms.
+      // - Perms are handled in the page section. (more precisly the Page Table Entry)
+     // - Pages are contained withing frames..
+    // - Hunh..
+
+        // So basically, we have to start with a hint which hints us where to start.
+       // Then we have a size.
+      // From that size, we have to access the the physical memory.
+     // Find and create a frame.
+    // From that frame insert a page in which we assign the correct permissions.
+
+    // Starting from scratch. We want:
+    // To export a virtual address that is one 16bit integer. It contains the path to the right area ?
+    // We reach the corresponding frame, from which we can reach the correct page.
+    // Something with the translation lookaside buffer.
+
+    // A lot of throaway comments.
+
+
+
+       // Firstly, when it means the hint is null.. I believe it means that it's a 
+      // null address, therefor it's representation is = 0. So the first if statement is if (hint == 0).
+     // If true, then we start at 0x1000.
+    // And if not, then we just start at hint.
+    if (hint.raw == 0) {
+      resultVirtualAddress = VirtualAddress{0x1000};
+    } else {
+      resultVirtualAddress = hint;
+    }
+
+         // Next the size.. so need to know how many pages we need to fit the entire data into.
+        // One page is 256bytes so we would need length / 256 but rounded up cause if 
+       // llength = 120 => nbrPages = 0.xxx. Just taking the same type as size: size_t.
+      // std::size_t nbrPages = ceil(length / 256)
+     // damn can't use ceil without importing a library..
+    // Just do it manually lmao just by adding 256 before dividing
+    std::size_t nbrPages = (length + 256) / 256;
+
+
+    // Have to align it
+    resultVirtualAddress = resultVirtualAddress.page();
+
+
+         // Now for the searching: need to keep going until found, or out of bounds.
+        // So will have the bounds as the condidtion and a break function as found at the end.
+       // hehe commented the kernel bounds code when reading it.. preshoted
+      // So the start of the kernel space is definitly 0xf800 and goes to 0xffff I imagine,
+     // since the comments said that 0xf800 to 0xf8ff was the translation table, which
+    // is in the kernel space and goes up => kernel space upper bound 0xffff.
+    std::size_t kernelLowerBound = 0xf800;
+    bool foundOne = false;
+    VirtualAddress startingPoint = resultVirtualAddress;
+
+    // Looks for a section containing enough pages to satisfy the date => nbrPages.
+    while (resultVirtualAddress.raw < kernelLowerBound){
+      // added try/catch after to resolve the gad dam error handling.
+      try{
+        foundOne = true;
+        for(std::size_t i = 0; i < nbrPages && foundOne; i++){    // goes through all pages one by one
+          translate(resultVirtualAddress.advanced(i * 256), 0);  // with the premade translate function
+          foundOne = false;                                     // we can see if it has the right perms
+        }                                                      // and throws to catch if perms don't 
+        } catch (PageLookupError const& e) {                  // allow or if va not mapped => means it's freeee.
+            if (e.cause == SegmentationFault) {              // SegementationFault means Page was not mapped
+              if (foundOne) break;                          // but if it found an area that is free, it just
+            }                                              // exits.
+      }
+
+      if (!foundOne) {                                  // If didn't find one, just try the next page
+        resultVirtualAddress = resultVirtualAddress.advanced(256);
+         // explained by a friend :
+        // If it goes back to the hint address, then there is no space available
+        if (resultVirtualAddress.raw == startingPoint.raw) {
+          throw std::bad_alloc();
+        }
+      }
+    }
+
+    // Don't even need this part.
+    //if (!foundOne || resultVirtualAddress.raw >= 0xf800) { throw std::bad_alloc(); } // Truely the worst
+
+    // Finally allocate all the pages legally.
+    for (std::size_t i = 0; i < nbrPages; ++i) {
+      allocate_page(resultVirtualAddress.advanced(i * 256), protection);
+    }
+
+    return resultVirtualAddress;
+  };
+  // Yippee the end.
+
+
+
+
 
   /// A segfault handlers that simply throws.
   static void rethrow(
