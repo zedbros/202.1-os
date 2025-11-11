@@ -1,0 +1,6 @@
+{
+  "name": "Lightweight Linux arm64",
+  "build": {
+    "dockerfile": "Dockerfile"
+  }
+}
