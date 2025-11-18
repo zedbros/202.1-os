@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <forward_list>
 #include <vector>
 
@@ -44,15 +45,15 @@ struct Scheduler {
   /// This method simulates the progress of the system and is meant to be called repeatedly until
   /// either all tasks have been completed or some timeout has been reached.
   ///
-  /// At each step, this method selects up to `core_count` tasks, moves them to `Task::Running` and
-  /// steps them. Other tasks are moved to either `Task::Ready`, if they should be scheduled later,
-  /// or `Task::Terminated`, if they terminated. A task cannot move to the `Task::Terminated` if it
-  /// can step.
+  /// `step` selects up to `core_count` tasks, moves them to `Task::Running` and steps them. Other
+  /// tasks are moved to `Task::Ready` if they should be scheduled later, or `Task::Terminated` if
+  /// they terminated. A task cannot move to the `Task::Terminated` if it can step.
+  ///
+  /// `step` does not remove nor reorder the elements of `tasks`. Any change to the contents of
+  /// `tasks` between consecutive calls to `step` may trigger undefined behavior.
   ///
   /// The return value is `true` iff at least one task stepped. Otherwise, the result is `false`
   /// and all task are in `Task::Terminated`, meaning that the system can no longer progress.
-  ///
-  /// This method may throw iff one of the tasks has been loaded with an ill-formed program.
   virtual bool step() = 0;
 
 };

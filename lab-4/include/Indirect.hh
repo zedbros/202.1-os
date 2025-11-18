@@ -27,7 +27,7 @@ public:
   }
 
   /// Wraps a copy of `other`s wrapped object.
-  Indirect& operator=(Indirect& other) {
+  Indirect& operator=(Indirect const& other) {
     *wrapped = *other;
     return *this;
   }
